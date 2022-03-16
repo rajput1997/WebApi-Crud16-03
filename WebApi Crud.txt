@@ -1,0 +1,247 @@
+webapi crude (get post delete update getbyid)
+
+   => Now Add three folders in the created project with the name "Models", "Services" and "IServices" 
+ 
+=> Now add the required references to work with the SQL Server database and .Net Framework
+   To do this, follow these steps
+	1. Go to Tools menu => NuGet Package Manager =>Package Manager Console
+	2. Run the below commands 
+	    PM> Install-Package Microsoft.EntityFrameworkCore.SqlServer	
+		PM> Install-Package Microsoft.EntityFrameworkCore.Tools
+		
+		
+=> Now configure the database and add model classes to do this, follow these steps
+	1. Go to Tools menu => NuGet Package Manager =>Package Manager Console
+	2. Run the below commands 
+    PM> Scaffold-DbContext "Server=DESKTOP-TA2C85E\SQLEXPRESS; Database=APICoreDB; User ID=sa;Password=123456;" Microsoft.EntityFrameworkCore.SqlServer -OutputDir Models
+	
+	After running the above command you are able to see two files are added into the Models folder with the name
+	"APICoreDBContext.cs" and "Employee.cs"
+	
+	
+=> Add connection String in the appsettings.json file
+	"DbConnection": "Server=DESKTOP-TA2C85E\\SQLEXPRESS;Database=APICoreDB;User ID=sa;Password=123456;"
+	
+ 	
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  },
+  "AllowedHosts": "*",
+  "DbConnection": "Server=DESKTOP-TA2C85E\\SQLEXPRESS;Database=APICoreDB;User ID=sa;Password=123456;"
+}
+
+	
+=> Add a class in the folder "Services" name it as "EmployeeService.cs" 
+=> Add Interface in the folder "IServices" and name it as "IEmployeeService.cs"
+
+
+=> Now its time to manage dependency injection 
+   ToDo this open the Startup.cs file 
+   Add below lines inside the function ConfigureServices
+            
+			services.AddHttpClient();
+            services.AddDbContext<APICoreDBContext>(options => 
+                     options.UseSqlServer(Configuration["DbConnection"]));
+
+            services.AddTransient<IEmployeeService, EmployeeService>();
+			
+			
+       After adding the lines your ConfigureServices function will look like as below
+	    
+	public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddControllers();
+            services.AddHttpClient();
+            services.AddDbContext<APICoreDBContext>(options =>
+                     options.UseSqlServer(Configuration["DbConnection"]));
+
+            services.AddTransient<IEmployeeService, EmployeeService>();
+        }
+
+=> Now Add the interface methods inside the file "IEmployeeService.cs"
+
+        IEnumerable<Employee> GetEmployee();
+        Employee GetEmployeeById(int id);
+        Employee AddEmployee(Employee employee);
+        Employee UpdateEmployee(Employee employee);
+        Employee DeleteEmployee(int id);
+		
+
+#After adding the above methods your "IEmployeeService.cs" file will look like below
+	
+	using System.Collections.Generic;
+	using WebAPICore.Models;
+
+	namespace WebAPICore.IServices
+	{
+		public interface IEmployeeService
+		{
+			IEnumerable<Employee> GetEmployee();
+			Employee GetEmployeeById(int id);
+			Employee AddEmployee(Employee employee);
+			Employee UpdateEmployee(Employee employee);
+			Employee DeleteEmployee(int id);
+		}
+	}
+
+=> Now Implement interface method inside the file "EmployeeService.cs"
+   1. You need to inherit interface then
+   2. Create an instance of the DBContext class using the constructor 
+      so that We can use it to communicate with the database as below
+   
+        APICoreDBContext dbContext;
+        public EmployeeService(APICoreDBContext _db)
+        {
+            dbContext = _db;
+        }
+
+	3. Now implement all the five methods that you have created in the above steps
+	   After implementing all the function your file will look like as below
+	   
+using Microsoft.EntityFrameworkCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using WebAPICore.IServices;
+using WebAPICore.Models;
+
+namespace WebAPICore.Services
+{
+    public class EmployeeService :IEmployeeService
+    {
+        APICoreDBContext dbContext;
+        public EmployeeService(APICoreDBContext _db)
+        {
+            dbContext = _db;
+        }
+
+        public IEnumerable<Employee> GetEmployee()
+        {
+            var employee = dbContext.Employee.ToList();
+            return employee;
+        }
+
+
+        public Employee AddEmployee(Employee employee)
+        {
+            if (employee != null)
+            {
+                dbContext.Employee.Add(employee);
+                dbContext.SaveChanges();
+                return employee;
+            }
+            return null;
+        }
+
+        public Employee UpdateEmployee(Employee employee)
+        {
+            dbContext.Entry(employee).State = EntityState.Modified;
+            dbContext.SaveChanges();
+            return employee;
+        }
+
+        public Employee DeleteEmployee(int id)
+        {
+            var employee = dbContext.Employee.FirstOrDefault(x => x.Id == id);
+            dbContext.Entry(employee).State = EntityState.Deleted;
+            dbContext.SaveChanges();
+            return employee;
+        }
+
+        public Employee GetEmployeeById(int id)
+        {
+            var employee = dbContext.Employee.FirstOrDefault(x => x.Id == id);
+            return employee;
+        }
+
+    }
+}
+
+=> Now Create the Controller, ToDo this Right-click on the Controllers folder then
+   Choose "Add" Option then
+   Choose "Controller..." then 
+   Select "API Controller - Empty" from the listed item then
+   Click on the "Add" button then
+   Provide the name to the controller as "EmployeeController.cs" and then
+   Click on the "Add" button
+   The controller will be created and now we have to write the API methods in it.
+   
+   Before Adding the APIs, we need to create an instance of the IEmployeeService interface and assign it by using the Constructor
+   so that we can call them to achieve our goal, to do this add the below lines
+   
+	private readonly IEmployeeService employeeService;
+        public EmployeeController(IEmployeeService employee)
+        {
+            employeeService = employee;
+        }
+		
+
+	3. Now we need to create five APIs method in the controller
+	After implementing all the five methods your controller file will look like as below
+	
+using System.Collections.Generic;
+using Microsoft.AspNetCore.Mvc;
+using WebAPICore.IServices;
+using WebAPICore.Models;
+
+namespace WebAPICore.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class EmployeeController : ControllerBase
+    {
+        private readonly IEmployeeService employeeService;
+        public EmployeeController(IEmployeeService employee)
+        {
+            employeeService = employee;
+        }
+
+
+        [HttpGet]
+        [Route("[action]")]
+        [Route("api/Employee/GetEmployee")]
+        public IEnumerable<Employee> GetEmployee()
+        {
+            return employeeService.GetEmployee();
+        }
+
+        [HttpPost]
+        [Route("[action]")]
+        [Route("api/Employee/AddEmployee")]
+        public Employee AddEmployee(Employee employee)
+        {
+            return employeeService.AddEmployee(employee);
+        }
+
+        [HttpPut]
+        [Route("[action]")]
+        [Route("api/Employee/EditEmployee")]
+        public Employee EditEmployee(Employee employee)
+        {
+            return employeeService.UpdateEmployee(employee);
+        }
+
+        [HttpDelete]
+        [Route("[action]")]
+        [Route("api/Employee/DeleteEmployee")]
+        public Employee DeleteEmployee(int id)
+        {
+            return employeeService.DeleteEmployee(id);
+        }
+
+        [HttpGet]
+        [Route("[action]")]
+        [Route("api/Employee/GetEmployeeId")]
+        public Employee GetEmployeeId(int id)
+        {
+            return employeeService.GetEmployeeById(id);
+        }
+    }
+}
+
